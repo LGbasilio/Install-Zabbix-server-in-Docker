@@ -1,3 +1,7 @@
+#######################################################
+Ainda vou fazer vários ajustes, não está pronto pra uso
+#######################################################
+
 Criar instância no Google Cloud Platform
 
 instalar o docker:
