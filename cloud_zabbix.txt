@@ -1,72 +1,41 @@
-#######################################################
-Ainda vou fazer vários ajustes, não está pronto pra uso
-#######################################################
+1 - Criar instância em sua Cloud preferida, eu fiz no Google Cloud Platform.
 
-Criar instância no Google Cloud Platform
-
-instalar o docker:
+2 - Instalar o docker:
 
 curl -fsSL https://get.docker.com/ | bash
 
-Realizar liberação da porta 10050/10051 para internet
+3 - Realizar as liberações das portas 10050/10051/10052 para comunicação entre as instâncias, GCP > Redes VPC > Firewall:
 
-Redes VPC > Firewall
-
-0.0.0.0:10051->10051/tcp
-0.0.0.0:3306/tcp
-
-
-https://hub.docker.com/_/mysql/
+4 - Baixar as imagens no docker:
 
 docker pull mysql
-
-docker run -p 3306:3306 --name cloud-mysql -e MYSQL_ROOT_PASSWORD=root -d mysql
-
-docker run -it --network host --rm mysql mysql -h localhost -u root -p
-
-docker logs mysql
-
-https://hub.docker.com/r/zabbix/zabbix-server-mysql
-
-1 - Copiar a imagem para o repositório de imagem do docker:
-
 docker pull zabbix/zabbix-server-mysql
-
-2 - Rodar a imagem:
-
-docker run -p 10051:10051 --name cloud-zabbix-server -e DB_SERVER_HOST="localhost" -e MYSQL_USER="root" -e MYSQL_PASSWORD="root" -d zabbix/zabbix-server-mysql
-
-Caso queira acessar o bash do container Zabbix criado na etapa anterior, execute o comando abaixo:
-
-docker exec -ti cloud-zabbix-server /bin/bash
-
-Para sair, segure o "ctrl + pq"
-
-Para visualizar os logs do container Zabbix, execute o comando abaixo:
-docker logs cloud-zabbix-server
-
-
-Baixar o container WEB
-
-https://hub.docker.com/r/zabbix/zabbix-web-nginx-mysql
-
-
 docker pull zabbix/zabbix-web-nginx-mysql
-
-docker run --name nginx-zabbix -p 8080:80 -e DB_SERVER_HOST="172.0.0.1" -e MYSQL_USER="root" -e MYSQL_PASSWORD="root" -e ZBX_SERVER_HOST="172.0.0.1" -e PHP_TZ="America/Sao_Paulo" -d zabbix/zabbix-web-nginx-mysql
-
-docker run --name nginx-mysql-link --link cloud-mysql:mysql -e DB_SERVER_HOST="172.0.0.1" -e MYSQL_USER="root" -e MYSQL_PASSWORD="root" -e ZBX_SERVER_HOST="172.0.0.1" -e PHP_TZ="America/Sao_Paulo" -d zabbix/zabbix-web-nginx-mysql
-
-docker run --name nginx-zabbix-link --link cloud-zabbix-server:zabbix-server -e DB_SERVER_HOST="172.0.0.1" -e MYSQL_USER="root" -e MYSQL_PASSWORD="root" -e ZBX_SERVER_HOST="172.0.0.1" -e PHP_TZ="America/Sao_Paulo" -d zabbix/zabbix-web-nginx-mysql
-
-https://hub.docker.com/r/zabbix/zabbix-agent
-
-
+docker pull zabbix/zabbix-java-gateway
 docker pull zabbix/zabbix-agent
 
-docker run --name zabbix-agent -e ZBX_HOSTNAME="instance-2" -e ZBX_SERVER_HOST="10.182.0.2" -d zabbix/zabbix-agent:tag
+5 - Subir o banco de dados MySql:
+docker run --name mysql-serve -t -e MYSQL_DATABASE="zabbix" -e MYSQL_USER="zabbix" -e MYSQL_PASSWORD="senha" -e MYSQL_ROOT_PASSWORD="senha" -d mysql --character-set-server=utf8 --collation-server=utf8_bin --default-authentication-plugin=mysql_native_password
 
+6 - Subir o GW Java:
 
+docker run --name zabbix-java-gateway -t --restart unless-stopped -d zabbix/zabbix-java-gateway
+
+7- Subir o Zabbix Server: 
+
+docker run --name zabbix-server-mysql -t -e DB_SERVER_HOST="mysql-server" -e MYSQL_DATABASE="zabbix" -e MYSQL_USER="zabbix" -e MYSQL_PASSWORD="senha" -e MYSQL_ROOT_PASSWORD="senha" -e ZBX_JAVAGATEWAY="zabbix-java-gateway" --link mysql-server:mysql --link zabbix-java-gateway:zabbix-java-gateway -p 10051:10051 --restart unless-stopped -d zabbix/zabbix-server-mysql
+
+8 - Subir o frontend do Zabbix com Nginx:
+
+docker run --name zabbix-web-nginx-mysql -t -e DB_SERVER_HOST="mysql-server" -e MYSQL_DATABASE="zabbix" -e MYSQL_USER="zabbix" -e MYSQL_PASSWORD="senha" -e MYSQL_ROOT_PASSWORD="senha" --link mysql-server:mysql --link zabbix-server-mysql:zabbix-server -p 80:8080 --restart unless-stopped -d zabbix/zabbix-web-nginx-mysql
+
+9 - Linkar os container do zabbix Agent com o banco de dados MySql:
+
+docker run --name zabbix-agent --link mysql-server:mysql --link zabbix-server-mysql:zabbix-server -e ZBX_HOSTNAME="Zabbix server" -e ZBX_SERVER_HOST="zabbix-server" -d zabbix/zabbix-agent
+
+10 - Após instalação com sucesso, logue no frontend com usuário "Admin" e Senha "zabbix" e altere o endereço IP de 127.0.0.1 para o endereço IP do contêiner de agente Zabbix:
+
+docker inspect zabbix-agent | grep "IPAddress\": "
 
 
 
